@@ -29,7 +29,12 @@ When these controllers are plugged in via USB without an active DJ software sess
 4. If the device was not connected beforehand, plug it in and press **Enter** to re-scan.
 5. Press **Enter** when finished to exit the program.
 
----
+   
+
+<img width="686" height="196" alt="IMG2" src="https://github.com/user-attachments/assets/1fffc313-0b80-4ea7-a37e-95f21c54f07f" />
+
+
+
 
 ## Technical Details
 
