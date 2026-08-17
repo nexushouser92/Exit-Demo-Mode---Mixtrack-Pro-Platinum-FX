@@ -5,20 +5,28 @@ import os
 import sys
 import webbrowser
 
-# Configurar consola con texto verde neón sobre fondo negro
+# ==============================================================================
+# CONSOLE DISPLAY CONFIGURATION
+# ==============================================================================
+# Configure terminal colors: Neon green text on black background
 os.system('')
 print('\033[40m\033[92m', end='')
 os.system('cls' if os.name == 'nt' else 'clear')
 
-# Detección del idioma de la PC (Método actualizado sin DeprecationWarning)
+# ==============================================================================
+# SYSTEM LANGUAGE DETECTION
+# ==============================================================================
+# Updated detection method to avoid DeprecationWarning
 try:
-  sys_lang = locale.getlocale()[0]
+    sys_lang = locale.getlocale()[0]
 except Exception:
-  sys_lang = None
+    sys_lang = None
 
 IS_SPANISH = sys_lang and sys_lang.startswith('es')
 
-# Diccionario de mensajes según el idioma
+# ==============================================================================
+# MULTILINGUAL MESSAGES DICTIONARY
+# ==============================================================================
 LANG = {
     'banner': (
         '   NUMARK MIXTRACK PLATINUM FX - EXIT DEMO MODE (AUTO-DETECT)    '
@@ -69,12 +77,15 @@ LANG = {
     ),
 }
 
+# ==============================================================================
+# WINDOWS MULTIMEDIA API (WINMM) & STRUCTURE DEFINITIONS
+# ==============================================================================
 winmm = ctypes.WinDLL('winmm')
 HMIDIOUT = wintypes.HANDLE
 
 
 class MIDIHDR(ctypes.Structure):
-  pass
+    pass
 
 
 MIDIHDR._fields_ = [
@@ -91,92 +102,105 @@ MIDIHDR._fields_ = [
 
 
 class MIDIOUTCAPS(ctypes.Structure):
-  _fields_ = [
-      ('wMid', wintypes.WORD),
-      ('wPid', wintypes.WORD),
-      ('vDriverVersion', wintypes.UINT),
-      ('szPname', ctypes.c_wchar * 32),
-      ('wTechnology', wintypes.WORD),
-      ('wVoices', wintypes.WORD),
-      ('wNotes', wintypes.WORD),
-      ('wChannelMask', wintypes.WORD),
-      ('dwSupport', wintypes.DWORD),
-  ]
+    _fields_ = [
+        ('wMid', wintypes.WORD),
+        ('wPid', wintypes.WORD),
+        ('vDriverVersion', wintypes.UINT),
+        ('szPname', ctypes.c_wchar * 32),
+        ('wTechnology', wintypes.WORD),
+        ('wVoices', wintypes.WORD),
+        ('wNotes', wintypes.WORD),
+        ('wChannelMask', wintypes.WORD),
+        ('dwSupport', wintypes.DWORD),
+    ]
 
 
+# ==============================================================================
+# NATIVE MIDI SYSEX HANDLER
+# ==============================================================================
 def send_sysex_native(h_midi_out, message_bytes):
-  raw_data = bytes(message_bytes)
-  buf_len = len(raw_data)
-  hdr = MIDIHDR()
-  hdr.lpData = ctypes.c_char_p(raw_data)
-  hdr.dwBufferLength = buf_len
-  hdr.dwBytesRecorded = buf_len
+    raw_data = bytes(message_bytes)
+    buf_len = len(raw_data)
+    hdr = MIDIHDR()
+    hdr.lpData = ctypes.c_char_p(raw_data)
+    hdr.dwBufferLength = buf_len
+    hdr.dwBytesRecorded = buf_len
 
-  res = winmm.midiOutPrepareHeader(
-      h_midi_out, ctypes.byref(hdr), ctypes.sizeof(hdr)
-  )
-  if res != 0:
-    print(LANG['sysex_prep_err'])
-    return
+    res = winmm.midiOutPrepareHeader(
+        h_midi_out, ctypes.byref(hdr), ctypes.sizeof(hdr)
+    )
+    if res != 0:
+        print(LANG['sysex_prep_err'])
+        return
 
-  res = winmm.midiOutLongMsg(h_midi_out, ctypes.byref(hdr), ctypes.sizeof(hdr))
-  if res != 0:
-    print(f"{LANG['sysex_send_err']} ({res}).")
+    res = winmm.midiOutLongMsg(h_midi_out, ctypes.byref(hdr), ctypes.sizeof(hdr))
+    if res != 0:
+        print(f"{LANG['sysex_send_err']} ({res}).")
 
-  winmm.midiOutUnprepareHeader(
-      h_midi_out, ctypes.byref(hdr), ctypes.sizeof(hdr)
-  )
+    winmm.midiOutUnprepareHeader(
+        h_midi_out, ctypes.byref(hdr), ctypes.sizeof(hdr)
+    )
 
 
+# ==============================================================================
+# MIDI DEVICE AUTOMATIC DETECTION
+# ==============================================================================
 def get_numark_port():
-  num_devs = winmm.midiOutGetNumDevs()
-  caps = MIDIOUTCAPS()
-  for i in range(num_devs):
-    winmm.midiOutGetDevCapsW(i, ctypes.byref(caps), ctypes.sizeof(caps))
-    dev_name = caps.szPname
-    if (
-        'mixtrack' in dev_name.lower()
-        or 'numark' in dev_name.lower()
-        or 'fx' in dev_name.lower()
-    ):
-      return i, dev_name
-  return None, None
+    num_devs = winmm.midiOutGetNumDevs()
+    caps = MIDIOUTCAPS()
+    for i in range(num_devs):
+        winmm.midiOutGetDevCapsW(i, ctypes.byref(caps), ctypes.sizeof(caps))
+        dev_name = caps.szPname
+        if (
+            'mixtrack' in dev_name.lower()
+            or 'numark' in dev_name.lower()
+            or 'fx' in dev_name.lower()
+        ):
+            return i, dev_name
+    return None, None
 
 
-# Encabezado principal
+# ==============================================================================
+# MAIN PROGRAM EXECUTION
+# ==============================================================================
+
+# Display header banner
 print('==================================================================')
 print(LANG['banner'])
 print('==================================================================\n')
 
-# 1. Detección automática con mensaje de conexión si no se encuentra
+# 1. Automatic controller detection loop
 port_number, dev_name = get_numark_port()
 
 while port_number is None:
-  print(LANG['not_found_err'])
-  input(LANG['connect_prompt'])
-  print()
-  port_number, dev_name = get_numark_port()
+    print(LANG['not_found_err'])
+    input(LANG['connect_prompt'])
+    print()
+    port_number, dev_name = get_numark_port()
 
 print(f"{LANG['detected']} {dev_name}")
 
-# 2. Abrir puerto y enviar SysEx
+# 2. Open MIDI port and send SysEx commands
 h_midi = HMIDIOUT()
 res = winmm.midiOutOpen(ctypes.byref(h_midi), port_number, 0, 0, 0)
 if res != 0:
-  print(LANG['port_open_err'].format(res=res))
-  input(f"\n{LANG['exit_prompt']}")
-  sys.exit()
+    print(LANG['port_open_err'].format(res=res))
+    input(f"\n{LANG['exit_prompt']}")
+    sys.exit()
 
+# SysEx messages definition
 exit_demo_sysex = [0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7]
 status_sysex = [0xF0, 0x00, 0x20, 0x7F, 0x03, 0x01, 0xF7]
 
+# Send commands directly to hardware
 send_sysex_native(h_midi, exit_demo_sysex)
 send_sysex_native(h_midi, status_sysex)
 
+# Close MIDI connection
 winmm.midiOutClose(h_midi)
 print(LANG['success'])
 
-# 3. Espera interactiva para salir y abrir enlace
+# 3. Exit prompt and repository redirection
 input(f"\n{LANG['exit_prompt']}")
 webbrowser.open(
     'https://github.com/nexushouser92/Exit-Demo-Mode---Mixtrack-Pro-Platinum-FX'
