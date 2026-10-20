@@ -12,7 +12,7 @@ When these controllers are plugged in via USB without an active DJ software sess
 ## Features
 
 * **Automatic Controller Detection**: Scans system MIDI outputs and connects to the first device whose name contains "Mixtrack", without manual port selection. Other MIDI devices are never touched.
-* **Plug & Play Prompting**: If the controller is not plugged in at launch, the program prompts you to connect it and press Enter to retry.
+* **Simple window, no terminal**: One button. If the controller is not plugged in yet, the window detects it as soon as you connect it.
 * **Native API Integration**: Uses the Windows Multimedia API (`winmm.dll`) via `ctypes`, with no extra drivers or libraries.
 * **English and Spanish**: Messages follow your Windows language.
 
@@ -30,17 +30,16 @@ When these controllers are plugged in via USB without an active DJ software sess
 1. Download `Exit Demo Mode - Numark Mixtrack Pro Platinum FX.exe` from the [Releases](../../releases) page.
 2. Connect your **Numark Mixtrack** controller to your computer via USB.
 3. Close any DJ software that may be using the controller.
-4. Run the `.exe`. It detects your device, sends the SysEx commands and shows a confirmation message.
-5. If the device was not connected beforehand, plug it in and press **Enter** to re-scan.
-6. Press **Enter** when finished to exit the program.
+4. Run the `.exe`. The window shows **Controller detected** (if not, plug the controller in and wait a second).
+5. Click **Exit demo mode**. The window confirms when it is done; then close it.
 
 The commands only last until the controller is unplugged or powered off, so run the tool again after reconnecting it.
 
-<img width="686" height="196" alt="IMG2" src="https://github.com/user-attachments/assets/1fffc313-0b80-4ea7-a37e-95f21c54f07f" />
+![Exit Demo Mode window](docs/window.png)
 
 ### Windows or the antivirus says the app is dangerous
 
-The `.exe` is not digitally signed, so Windows SmartScreen shows "Unknown publisher". Click **More info** → **Run anyway**.
+The `.exe` is not digitally signed, so Windows SmartScreen shows "Unknown publisher". Click **More info** â†’ **Run anyway**.
 
 A few antivirus engines flag apps made with PyInstaller as false positives. Every release `.exe` is built by [GitHub Actions](../../actions) from the code in this repository, and each release includes a `SHA256.txt` so you can check your download:
 
@@ -67,7 +66,7 @@ The tool waits for the Windows MIDI driver to confirm that each message was sent
 
 ```bash
 python -m pip install pyinstaller
-python -m PyInstaller --onefile --console --name "Exit Demo Mode - Numark Mixtrack Pro Platinum FX" main.py
+python -m PyInstaller --onefile --windowed --name "Exit Demo Mode - Numark Mixtrack Pro Platinum FX" main.py
 ```
 
 The result is in `dist\`.
@@ -80,7 +79,7 @@ Run the tests (they use a fake `winmm`, no controller needed):
 python -m unittest discover -s tests -v
 ```
 
-To publish a release, go to **Releases → Draft a new release** on GitHub, type a new tag (for example `v1.0.1`) and publish. The workflow runs the tests, builds the `.exe` and attaches it to the release with its `SHA256.txt`.
+To publish a release, go to **Releases â†’ Draft a new release** on GitHub, type a new tag (for example `v1.0.1`) and publish. The workflow runs the tests, builds the `.exe` and attaches it to the release with its `SHA256.txt`.
 
 ---
 

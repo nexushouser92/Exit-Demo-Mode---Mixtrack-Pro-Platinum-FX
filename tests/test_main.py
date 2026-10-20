@@ -15,11 +15,12 @@ import main
 class FakeWinmm:
     """Stands in for winmm.dll. Arguments passed with ctypes.byref() are reached through ._obj."""
 
-    def __init__(self, devices=(), prepare=0, send=0, completes=True, still_playing=0):
+    def __init__(self, devices=(), prepare=0, send=0, completes=True, still_playing=0, open_res=0):
         self.devices = list(devices)
         self.prepare, self.send, self.completes = prepare, send, completes
         self.still_playing = still_playing  # times midiOutUnprepareHeader answers MIDIERR_STILLPLAYING
-        self.sent, self.unprepared = [], 0
+        self.open_res = open_res
+        self.sent, self.unprepared, self.closed = [], 0, 0
 
     def midiOutGetNumDevs(self):
         return len(self.devices)
@@ -29,6 +30,13 @@ class FakeWinmm:
         if name is None:
             return 2  # MMSYSERR_BADDEVICEID
         caps_ref._obj.szPname = name
+        return 0
+
+    def midiOutOpen(self, handle_ref, port, callback, instance, flags):
+        return self.open_res
+
+    def midiOutClose(self, h):
+        self.closed += 1
         return 0
 
     def midiOutPrepareHeader(self, h, hdr_ref, size):
@@ -81,33 +89,52 @@ class SysexTests(unittest.TestCase):
     def test_sends_exact_bytes(self, _):
         fake = FakeWinmm()
         with with_winmm(fake):
-            self.assertTrue(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
+            self.assertIsNone(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
         self.assertEqual(fake.sent, [bytes(main.EXIT_DEMO_SYSEX)])
         self.assertEqual(fake.unprepared, 1)
 
     def test_waits_while_still_playing(self, _):
         fake = FakeWinmm(still_playing=3)
         with with_winmm(fake):
-            self.assertTrue(main.send_sysex_native(1, main.STATUS_SYSEX))
+            self.assertIsNone(main.send_sysex_native(1, main.STATUS_SYSEX))
         self.assertEqual(fake.unprepared, 1)
 
     def test_prepare_failure(self, _):
         fake = FakeWinmm(prepare=11)
         with with_winmm(fake):
-            self.assertFalse(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
+            self.assertIsNotNone(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
         self.assertEqual(fake.sent, [])
 
     def test_send_failure_still_unprepares(self, _):
         fake = FakeWinmm(send=7)
         with with_winmm(fake):
-            self.assertFalse(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
+            self.assertIsNotNone(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
         self.assertEqual(fake.unprepared, 1)
 
     def test_timeout_when_driver_never_finishes(self, _):
         fake = FakeWinmm(completes=False)
         with with_winmm(fake), mock.patch.object(main, 'SYSEX_TIMEOUT', 0.05):
-            self.assertFalse(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
+            self.assertIsNotNone(main.send_sysex_native(1, main.EXIT_DEMO_SYSEX))
         self.assertEqual(fake.unprepared, 1)
+
+    def test_exit_demo_mode_sends_both_and_closes(self, _):
+        fake = FakeWinmm()
+        with with_winmm(fake):
+            self.assertIsNone(main.exit_demo_mode(1))
+        self.assertEqual(fake.sent, [bytes(main.EXIT_DEMO_SYSEX), bytes(main.STATUS_SYSEX)])
+        self.assertEqual(fake.closed, 1)
+
+    def test_exit_demo_mode_port_busy(self, _):
+        fake = FakeWinmm(open_res=4)  # MMSYSERR_ALLOCATED: DJ software has the port
+        with with_winmm(fake):
+            self.assertIn('4', main.exit_demo_mode(1))
+        self.assertEqual((fake.sent, fake.closed), ([], 0))
+
+    def test_exit_demo_mode_reports_send_error_and_closes(self, _):
+        fake = FakeWinmm(send=7)
+        with with_winmm(fake):
+            self.assertIn('7', main.exit_demo_mode(1))
+        self.assertEqual(fake.closed, 1)
 
     def test_messages_are_valid_sysex(self, _):
         for msg in (main.EXIT_DEMO_SYSEX, main.STATUS_SYSEX):
